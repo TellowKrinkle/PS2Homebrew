@@ -1,0 +1,69 @@
+; Inputs: GIFTag at 0.xyzw
+;         Initial STQ at 1.xyz
+
+; Outputs points as triplets of (STQ, RGBA, XYZ2) gif registers
+; XY Goes from (0, 0) to (128, 256), left to right top to bottom
+; ST goes from (0, 0) to (32768 * InitialS, 32768 * InitialT) diagonally in increments of (InitialS, InitialT)
+; Q is always InitialQ
+; RGBA is always 0
+; Outputs 128 points (one line) at a time, alternating between 0 and 0x200 for base addresses
+
+; Registers:
+; VF31: ST advance
+; VF30: ST1
+; VF29: ST0
+; VF28: RGBA
+; VF27: XY1
+; VF26: XY0
+; VF25: (1, 1, 1, 2)
+; VI15: Y Counter
+; VI14: X Counter
+; VI13: xgkick base pointer
+; VI12: write pointer
+; VI11: 0x200
+
+.vu
+.global VUPointScanVIFTagBegin
+.global VUPointScanVIFTagEnd
+.global VUPointScanBegin
+.global VUPointScanEnd
+
+.align 4
+VUPointScanVIFTagBegin:
+	; Integrated VIFtag for easy uplaod
+	.long 0 ; NOP
+	.long (0x4A << 24) | (((VUPointScanEnd - VUPointScanBegin) / 8) << 16) ; MPG LengthOfVUData, 0
+VUPointScanBegin:
+	MINIx     VF28, VF00, VF00    LQ     VF30, 1(VI00)     ; Clear RGBA, Load base STQ into ST1
+	MINIx.xyw VF29, VF00, VF00    LQ     VF01, 0(VI00)     ; Clear ST0,  Load GIFTag into VI01
+	MINIx     VF26, VF00, VF00    IADDIU VI15, VI00, 256   ; Clear XY0,  Initialize Y counter to 256
+	MINIx     VF27, VF00, VF00    IADDIU VI13, VI00, 0     ; Clear XY1,  Initialize base register to 0
+	ADD.z     VF29, VF30, VF00    NOP                      ; Copy Q to ST0
+	ADD       VF31, VF30, VF30    SQ     VF01, 0x200(VI00) ; Load (InitialS * 2, InitialT * 2, _, _) into ST advance, Store GIFtag to second upload position
+	ADDw      VF25, VF00, VF00    IADDIU VI11, VI00, 0x200 ; Initialize VF25 to (1, 1, 1, 2), Initialize VI11 to 0x200
+
+vloop:
+	MINIx.x   VF26, VF00, VF00    IAND   VI13, VI13, VI11  ; Reset X0, Mask base pointer so it alternates between 0 and 0x200
+	MAXw.x    VF27, VF00, VF00    IADDIU VI14, VI00, 128   ; Reset X1, Initialize X counter to 128
+	FTOI4     VF01, VF26          IADDIU VI12, VI13, 1     ; Convert initial XY0, Initialize write pointer to right after the giftag
+	FTOI4     VF02, VF27          ISUBIU VI15, VI15, 1     ; Convert initial XY1, Decrement Y counter
+
+hloop:
+	ADDw.x    VF26, VF26, VF25    SQI    VF29, (VI12++)    ; Advance X0, Store ST0
+	ADDw.x    VF27, VF27, VF25    SQI    VF28, (VI12++)    ; Advance X1, Store RGBA0
+	ADD.xy    VF29, VF29, VF31    SQI    VF01, (VI12++)    ; Advance ST0, Store converted XY0
+	ADD.xy    VF30, VF30, VF31    SQI    VF30, (VI12++)    ; Advance ST1, Store ST1 (pre-advance value)
+	NOP                           ISUBIU VI14, VI14, 2     ; Decrement X counter
+	FTOI4     VF01, VF26          SQI    VF28, (VI12++)    ; Convert next XY0, Store RGBA1
+	NOP                           IBGTZ  VI14, hloop       ; Loop if not done
+	FTOI4     VF02, VF27          SQI    VF02, (VI12++)    ; Convert next XY1, Store converted XY1
+
+	ADDw.y    VF26, VF26, VF00    XGKICK VI13              ; Advance Y0, start GS transfer
+	ADDw.y    VF27, VF27, VF00    IBGTZ  VI15, vloop       ; Advance Y1, Loop if not done
+	NOP                           IADDIU VI13, VI13, 0x200 ; Offset base pointer to next buffer
+
+	NOP[E]                        NOP                      ; All done!
+	NOP                           NOP
+VUPointScanEnd:
+.align 4, 0
+VUPointScanVIFTagEnd:

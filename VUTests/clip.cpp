@@ -1,3 +1,5 @@
+#include "vutests.h"
+
 #include <tamtypes.h>
 #include <stdio.h>
 
@@ -57,7 +59,7 @@ bool testClip() {
 		);
 		if ((out & 0x3f) != test.result) {
 			ok = false;
-			printf("CLIP %08x %08x %08x %08x => %s != %s\n",
+			printf("VCLIP %08x %08x %08x %08x => %s != %s\n",
 				test.test[0], test.test[1], test.test[2], test.test[3],
 				PrintClipFlags(out).str, PrintClipFlags(test.result).str
 			);

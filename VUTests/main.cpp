@@ -8,11 +8,16 @@
 #include <fcntl.h>
 #include <iterator>
 
-bool testClip();
+#include "vutests.h"
 
 int main(int argc, const char* argv[]) {
 	bool ok = true;
 	ok &= testClip();
+	ok &= testAdd();
+	ok &= testSub();
+	ok &= testMul();
+	ok &= testMAdd();
+	ok &= testMSub();
 	if (ok) {
 		printf("All tests passed\n");
 	}

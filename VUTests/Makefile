@@ -1,5 +1,5 @@
 EE_BIN = test.elf
-EE_OBJS = main.o clip.o
+EE_OBJS = main.o clip.o mac.o
 EE_LIBS = -lc
 
 all: $(EE_BIN)

@@ -553,3 +553,147 @@ bool testMSub() {
 	res &= runTestCOP2<doOp3COP2<Op3Arg::MSub>, true>("VMSUB",  "-", maddTests);
 	return res;
 }
+
+static u32 processFlagsCOP1(u32 flags) {
+	return ((flags >> 3) & 0xf) | ((flags >> 10) & 0xf0);
+}
+
+static bool testCOP2Flags() {
+	alignas(16) static constexpr u32 data[] = {
+		0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFE,
+		0x00000000, 0x00000000, 0x7FFFFFFE, 0x7FFFFFFE,
+		0x7FFFFFFE, 0x7FFFFFFE, 0x00000000, 0x00000000,
+	};
+	static constexpr struct {
+		u16 stat;
+		u16 mac;
+		const char* op;
+	} expected[] = {
+		{00000, 0x0000, "VADD.XY --OO"},
+		{01010, 0x2000, "VADD.XZ --OO"},
+		{05050, 0x2000, "DIV     D   "},
+		{05040, 0x0000, "VADD.W  OO--"},
+	};
+	constexpr u32 count = sizeof(expected) / sizeof(*expected);
+	u32 stat[count], mac[count];
+	asm(
+		"ctc2    $0,   $16        \n\t"
+		"lqc2    $vf1,  0(%[buf]) \n\t"
+		"lqc2    $vf2, 16(%[buf]) \n\t"
+		"lqc2    $vf3, 32(%[buf]) \n\t"
+		"vadd.xy $vf4, $vf1, $vf2 \n\t"
+		"vmove   $vf5, $vf4       \n\t"
+		"cfc2    $8,   $16        \n\t"
+		"cfc2    $9,   $17        \n\t"
+		"sw      $8,    0(%[stat])\n\t"
+		"sw      $9,    0(%[mac]) \n\t"
+		"vadd.xz $vf4, $vf1, $vf2 \n\t"
+		"vmove   $vf5, $vf4       \n\t"
+		"cfc2    $8,   $16        \n\t"
+		"cfc2    $9,   $17        \n\t"
+		"sw      $8,    4(%[stat])\n\t"
+		"sw      $9,    4(%[mac]) \n\t"
+		"vdiv    $Q, $vf1x, $vf0x \n\t"
+		"vwaitq                   \n\t"
+		"cfc2    $8,   $16        \n\t"
+		"cfc2    $9,   $17        \n\t"
+		"sw      $8,    8(%[stat])\n\t"
+		"sw      $9,    8(%[mac]) \n\t"
+		"vadd.w  $vf4, $vf1, $vf3 \n\t"
+		"vmove   $vf5, $vf4       \n\t"
+		"cfc2    $8,   $16        \n\t"
+		"cfc2    $9,   $17        \n\t"
+		"sw      $8,   12(%[stat])\n\t"
+		"sw      $9,   12(%[mac]) \n\t"
+		"vsqrt   $Q,   $vf0x      \n\t"
+		:
+		: [buf]"r"(data), [stat]"r"(stat), [mac]"r"(mac)
+		: "memory", "8", "9"
+	);
+	bool statOK = true;
+	bool macOK = true;
+	for (u32 i = 0; i < count; i++) {
+		statOK &= stat[i] == expected[i].stat;
+		macOK &= mac[i] == expected[i].mac;
+	}
+	if (!statOK) {
+		for (u32 i = 0; i < 4; i++) {
+			const char* eq = stat[i] == expected[i].stat ? "==" : "!=";
+			printf("%s STATUS FLAGS %s %s %s\n", expected[i].op, PrintCOP2Status(stat[i]).str, eq, PrintCOP2Status(expected[i].stat).str);
+		}
+	}
+	if (!macOK) {
+		for (u32 i = 0; i < 4; i++) {
+			u32 expmac = expected[i].mac;
+			const char* eq = mac[i] == expmac ? "==" : "!=";
+			printf("%s MAC FLAGS %s %s %s %s %s %s %s %s %s\n", expected[i].op,
+				PrintCOP2MAC(mac[i], 3).str, PrintCOP2MAC(mac[i], 2).str, PrintCOP2MAC(mac[i], 1).str, PrintCOP2MAC(mac[i], 0).str, eq,
+				PrintCOP2MAC(expmac, 3).str, PrintCOP2MAC(expmac, 2).str, PrintCOP2MAC(expmac, 1).str, PrintCOP2MAC(expmac, 0).str);
+		}
+	}
+	return statOK && macOK;
+}
+
+static bool testCOP1Flags() {
+	static constexpr u32 data[] = {
+		0x00000000, 0xFFFFFFFE, 0x00800000, 0x00800001
+	};
+	static constexpr struct {
+		u32 stat;
+		const char* op;
+	} expected[] = {
+		{0x22, "ADD.S  O"},
+		{0x66, "DIV.S  D"},
+		{0x57, "SUB.S  U"},
+		{0x9F, "SQRT.S I"},
+		{0x8F, "MUL.S  -"},
+		{0x0F, "SQRT.S -"},
+	};
+	constexpr u32 count = sizeof(expected) / sizeof(*expected);
+	u32 stat[count];
+	asm(
+		"ctc1  $0,  $31       \n\t"
+		"lwc1  $f0,  0(%[buf])\n\t"
+		"lwc1  $f1,  4(%[buf])\n\t"
+		"lwc1  $f2,  8(%[buf])\n\t"
+		"lwc1  $f3, 12(%[buf])\n\t"
+		"add.s $f4, $f1, $f1  \n\t"
+		"cfc1  $8,  $31       \n\t"
+		"div.s $f4, $f1, $f0  \n\t"
+		"sw    $8,  0(%[stat])\n\t"
+		"cfc1  $8,  $31       \n\t"
+		"sub.s $f4, $f3, $f2  \n\t"
+		"sw    $8,  4(%[stat])\n\t"
+		"cfc1  $8,  $31       \n\t"
+		"sqrt.s $f4, $f1      \n\t"
+		"sw    $8,  8(%[stat])\n\t"
+		"cfc1  $8,  $31       \n\t"
+		"mul.s $f4, $f0, $f1  \n\t"
+		"sw    $8, 12(%[stat])\n\t"
+		"cfc1  $8,  $31       \n\t"
+		"sqrt.s $f4, $f0      \n\t"
+		"sw    $8, 16(%[stat])\n\t"
+		"cfc1  $8,  $31       \n\t"
+		"sw    $8, 20(%[stat])\n\t"
+		:
+		: [buf]"r"(data), [stat]"r"(stat)
+		: "memory", "8", "f0", "f1", "f2", "f3", "f4"
+	);
+	bool ok = true;
+	for (u32 i = 0; i < count; i++)
+		ok &= processFlagsCOP1(stat[i]) == expected[i].stat;
+	if (!ok) {
+		for (u32 i = 0; i < count; i++) {
+			const char* eq = processFlagsCOP1(stat[i]) == expected[i].stat ? "==" : "!=";
+			printf("%s STATUS FLAGS %s %s %s\n", expected[i].op, PrintCOP1Flags(processFlagsCOP1(stat[i])).str, eq, PrintCOP1Flags(expected[i].stat).str);
+		}
+	}
+	return ok;
+}
+
+bool testFlags() {
+	bool ok = true;
+	ok &= testCOP1Flags();
+	ok &= testCOP2Flags();
+	return ok;
+}

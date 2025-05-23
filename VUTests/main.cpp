@@ -13,6 +13,7 @@
 int main(int argc, const char* argv[]) {
 	bool ok = true;
 	ok &= testClip();
+	ok &= testFlags();
 	ok &= testAdd();
 	ok &= testSub();
 	ok &= testMul();

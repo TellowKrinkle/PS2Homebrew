@@ -17,6 +17,7 @@ struct ArrayRef {
 };
 
 bool testClip(void);
+bool testFlags(void);
 bool testAdd(void);
 bool testSub(void);
 bool testMul(void);

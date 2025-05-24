@@ -1,6 +1,5 @@
 #include "vutests.h"
 
-#include <tamtypes.h>
 #include <stdio.h>
 
 /// The flags from a math operation
@@ -33,43 +32,6 @@ struct COP1Result {
 struct COP2Result {
 	u32 status;
 	u32 mac;
-};
-
-struct PrintCOP2Status {
-	char str[19];
-	constexpr static const char FLAGS[6] = {'Z','S','U','O','I','D'};
-	constexpr PrintCOP2Status(u32 reg): str{} {
-		for (u32 i = 0; i < 6; i++) {
-			str[i * 2 + 0] = (reg >> (i + 6)) & 1 ? FLAGS[i] : '-';
-			str[i * 2 + 1] = (reg >> (i + 6)) & 1 ? 'S'      : '-';
-			str[i + 12]    = (reg >> (i + 0)) & 1 ? FLAGS[i] : '-';
-		}
-		str[18] = '\0';
-	}
-};
-
-struct PrintCOP2MAC {
-	char str[5];
-	constexpr static const char FLAGS[4] = {'Z','S','U','O'};
-	constexpr PrintCOP2MAC(u32 reg, u32 idx): str{} {
-		for (u32 i = 0; i < 4; i++) {
-			str[i] = (reg >> (i * 4 + idx)) & 1 ? FLAGS[i] : '-';
-		}
-		str[4] = '\0';
-	}
-};
-
-struct PrintCOP1Flags {
-	char str[13];
-	constexpr static const char FLAGS[4] = {'U','O','D','I'};
-	constexpr PrintCOP1Flags(u32 data): str{} {
-		for (u32 i = 0; i < 4; i++) {
-			str[i * 2 + 0] = (data >> (i + 0)) & 1 ? 'S'      : '-';
-			str[i * 2 + 1] = (data >> (i + 0)) & 1 ? FLAGS[i] : '-';
-			str[i + 8]     = (data >> (i + 4)) & 1 ? FLAGS[i] : '-';
-		}
-		str[12] = '\0';
-	}
 };
 
 template <COP2Result(*Fn)(u32(&)[4], const u32(&)[4], const u32(&)[4]), bool Inv = false>
@@ -552,10 +514,6 @@ bool testMSub() {
 	res &= runTestCOP1<doOp3COP1<Op3Arg::MSub>, true>("MSUB.S", "-", maddTests);
 	res &= runTestCOP2<doOp3COP2<Op3Arg::MSub>, true>("VMSUB",  "-", maddTests);
 	return res;
-}
-
-static u32 processFlagsCOP1(u32 flags) {
-	return ((flags >> 3) & 0xf) | ((flags >> 10) & 0xf0);
 }
 
 static bool testCOP2Flags() {

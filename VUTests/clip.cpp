@@ -1,6 +1,5 @@
 #include "vutests.h"
 
-#include <tamtypes.h>
 #include <stdio.h>
 
 struct alignas(16) ClipTest {

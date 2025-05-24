@@ -19,6 +19,9 @@ int main(int argc, const char* argv[]) {
 	ok &= testMul();
 	ok &= testMAdd();
 	ok &= testMSub();
+	ok &= testDiv();
+	ok &= testSqrt();
+	ok &= testRSqrt();
 	if (ok) {
 		printf("All tests passed\n");
 	}

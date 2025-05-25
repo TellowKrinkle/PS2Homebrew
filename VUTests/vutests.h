@@ -65,6 +65,7 @@ bool testSub(void);
 bool testMul(void);
 bool testMAdd(void);
 bool testMSub(void);
+bool testAcc(void);
 bool testDiv(void);
 bool testSqrt(void);
 bool testRSqrt(void);

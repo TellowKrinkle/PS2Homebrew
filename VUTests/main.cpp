@@ -19,6 +19,7 @@ int main(int argc, const char* argv[]) {
 	ok &= testMul();
 	ok &= testMAdd();
 	ok &= testMSub();
+	ok &= testAcc();
 	ok &= testDiv();
 	ok &= testSqrt();
 	ok &= testRSqrt();

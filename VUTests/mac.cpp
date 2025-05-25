@@ -516,17 +516,63 @@ bool testMSub() {
 	return res;
 }
 
+struct COP2FlagOp {
+	u16 stat;
+	u16 mac;
+	const char* op;
+};
+
+static bool checkCOP2Flags(const COP2FlagOp* expected, const u32* stat, const u32* mac, u32 count) {
+	bool statOK = true;
+	bool macOK = true;
+	for (u32 i = 0; i < count; i++) {
+		statOK &= stat[i] == expected[i].stat;
+		macOK &= mac[i] == expected[i].mac;
+	}
+	if (!statOK) {
+		for (u32 i = 0; i < 4; i++) {
+			const char* eq = stat[i] == expected[i].stat ? "==" : "!=";
+			printf("%s STATUS FLAGS %s %s %s\n", expected[i].op, PrintCOP2Status(stat[i]).str, eq, PrintCOP2Status(expected[i].stat).str);
+		}
+	}
+	if (!macOK) {
+		for (u32 i = 0; i < 4; i++) {
+			u32 expmac = expected[i].mac;
+			const char* eq = mac[i] == expmac ? "==" : "!=";
+			printf("%s MAC FLAGS %s %s %s %s %s %s %s %s %s\n", expected[i].op,
+				PrintCOP2MAC(mac[i], 3).str, PrintCOP2MAC(mac[i], 2).str, PrintCOP2MAC(mac[i], 1).str, PrintCOP2MAC(mac[i], 0).str, eq,
+				PrintCOP2MAC(expmac, 3).str, PrintCOP2MAC(expmac, 2).str, PrintCOP2MAC(expmac, 1).str, PrintCOP2MAC(expmac, 0).str);
+		}
+	}
+	return statOK && macOK;
+}
+
+struct COP1FlagOp {
+	u32 stat;
+	const char* op;
+};
+
+static bool checkCOP1Flags(const COP1FlagOp* expected, const u32* stat, u32 count) {
+	bool ok = true;
+	for (u32 i = 0; i < count; i++)
+		ok &= processFlagsCOP1(stat[i]) == expected[i].stat;
+	if (!ok) {
+		for (u32 i = 0; i < count; i++) {
+			u32 flags = processFlagsCOP1(stat[i]);
+			const char* eq = flags == expected[i].stat ? "==" : "!=";
+			printf("%s STATUS FLAGS %s %s %s\n", expected[i].op, PrintCOP1Flags(flags).str, eq, PrintCOP1Flags(expected[i].stat).str);
+		}
+	}
+	return ok;
+}
+
 static bool testCOP2Flags() {
 	alignas(16) static constexpr u32 data[] = {
 		0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFE,
 		0x00000000, 0x00000000, 0x7FFFFFFE, 0x7FFFFFFE,
 		0x7FFFFFFE, 0x7FFFFFFE, 0x00000000, 0x00000000,
 	};
-	static constexpr struct {
-		u16 stat;
-		u16 mac;
-		const char* op;
-	} expected[] = {
+	static constexpr COP2FlagOp expected[] = {
 		{00000, 0x0000, "VADD.XY --OO"},
 		{01010, 0x2000, "VADD.XZ --OO"},
 		{05050, 0x2000, "DIV     D   "},
@@ -568,38 +614,14 @@ static bool testCOP2Flags() {
 		: [buf]"r"(data), [stat]"r"(stat), [mac]"r"(mac)
 		: "memory", "8", "9"
 	);
-	bool statOK = true;
-	bool macOK = true;
-	for (u32 i = 0; i < count; i++) {
-		statOK &= stat[i] == expected[i].stat;
-		macOK &= mac[i] == expected[i].mac;
-	}
-	if (!statOK) {
-		for (u32 i = 0; i < 4; i++) {
-			const char* eq = stat[i] == expected[i].stat ? "==" : "!=";
-			printf("%s STATUS FLAGS %s %s %s\n", expected[i].op, PrintCOP2Status(stat[i]).str, eq, PrintCOP2Status(expected[i].stat).str);
-		}
-	}
-	if (!macOK) {
-		for (u32 i = 0; i < 4; i++) {
-			u32 expmac = expected[i].mac;
-			const char* eq = mac[i] == expmac ? "==" : "!=";
-			printf("%s MAC FLAGS %s %s %s %s %s %s %s %s %s\n", expected[i].op,
-				PrintCOP2MAC(mac[i], 3).str, PrintCOP2MAC(mac[i], 2).str, PrintCOP2MAC(mac[i], 1).str, PrintCOP2MAC(mac[i], 0).str, eq,
-				PrintCOP2MAC(expmac, 3).str, PrintCOP2MAC(expmac, 2).str, PrintCOP2MAC(expmac, 1).str, PrintCOP2MAC(expmac, 0).str);
-		}
-	}
-	return statOK && macOK;
+	return checkCOP2Flags(expected, stat, mac, count);
 }
 
 static bool testCOP1Flags() {
 	static constexpr u32 data[] = {
 		0x00000000, 0xFFFFFFFE, 0x00800000, 0x00800001
 	};
-	static constexpr struct {
-		u32 stat;
-		const char* op;
-	} expected[] = {
+	static constexpr COP1FlagOp expected[] = {
 		{0x22, "ADD.S  O"},
 		{0x66, "DIV.S  D"},
 		{0x57, "SUB.S  U"},
@@ -637,21 +659,164 @@ static bool testCOP1Flags() {
 		: [buf]"r"(data), [stat]"r"(stat)
 		: "memory", "8", "f0", "f1", "f2", "f3", "f4"
 	);
-	bool ok = true;
-	for (u32 i = 0; i < count; i++)
-		ok &= processFlagsCOP1(stat[i]) == expected[i].stat;
-	if (!ok) {
-		for (u32 i = 0; i < count; i++) {
-			const char* eq = processFlagsCOP1(stat[i]) == expected[i].stat ? "==" : "!=";
-			printf("%s STATUS FLAGS %s %s %s\n", expected[i].op, PrintCOP1Flags(processFlagsCOP1(stat[i])).str, eq, PrintCOP1Flags(expected[i].stat).str);
-		}
-	}
-	return ok;
+	return checkCOP1Flags(expected, stat, count);
 }
 
 bool testFlags() {
 	bool ok = true;
 	ok &= testCOP1Flags();
 	ok &= testCOP2Flags();
+	return ok;
+}
+
+bool testAccCop1() {
+	static constexpr u32 data[] = {
+		0x00000000, 0x7FFFFFFF, 0x3F800000, 0xC0800000
+	};
+	static constexpr COP1FlagOp expected[] = {
+		{0x22, "ADDA.S  O"},
+		{0x02, "ADD.S   -"},
+		{0x22, "MSUBA.S -"},
+		{0x22, "MADD.S  O"},
+		{0x02, "ADDA.S  -"},
+		{0x22, "ADD.S   O"},
+		{0x02, "MSUB.S  -"},
+	};
+	static constexpr struct {
+		u32 val;
+		const char* op;
+	} expectedResult[] = {
+		{0x7FFFFFFF, "(7FFFFFFF ADDA.S + 7FFFFFFF) MSUB.S - (7FFFFFFF * 3F800000)"},
+		{0xFFFFFFFF, "(7FFFFFFF ADDA.S + 7FFFFFFF) MSUBA.S - (7FFFFFFF * 3F800000) MADD.S + (7FFFFFFF * C0800000)"},
+		{0x74000000, "(7FFFFFFF ADDA.S + 00000000) MSUB.S - (3F800000 * 7FFFFFFF)"},
+	};
+	constexpr u32 count = sizeof(expected) / sizeof(*expected);
+	constexpr u32 countRes = sizeof(expectedResult) / sizeof(*expectedResult);
+	u32 stat[count];
+	u32 val[countRes];
+	asm(
+		"ctc1    $0,  $31        \n\t"
+		"lwc1    $f0,  0(%[buf]) \n\t"
+		"lwc1    $f1,  4(%[buf]) \n\t"
+		"lwc1    $f2,  8(%[buf]) \n\t"
+		"lwc1    $f3, 12(%[buf]) \n\t"
+		"adda.s  $f1, $f1        \n\t"
+		"cfc1    $8,  $31        \n\t"
+		"add.s   $f4, $f2, $f3   \n\t"
+		"sw      $8,   0(%[stat])\n\t"
+		"cfc1    $8,  $31        \n\t"
+		"msub.s  $f4, $f1, $f2   \n\t"
+		"msuba.s $f1, $f2        \n\t"
+		"sw      $8,   4(%[stat])\n\t"
+		"swc1    $f4,  0(%[out]) \n\t"
+		"cfc1    $8,  $31        \n\t"
+		"madd.s  $f4, $f1, $f3   \n\t"
+		"sw      $8,   8(%[stat])\n\t"
+		"cfc1    $8,  $31        \n\t"
+		"adda.s  $f1, $f0        \n\t"
+		"swc1    $f4,  4(%[out]) \n\t"
+		"sw      $8,  12(%[stat])\n\t"
+		"cfc1    $8,  $31        \n\t"
+		"add.s   $f4, $f1, $f1   \n\t"
+		"sw      $8,  16(%[stat])\n\t"
+		"cfc1    $8,  $31        \n\t"
+		"msub.s  $f4, $f2, $f1   \n\t"
+		"sw      $8,  20(%[stat])\n\t"
+		"cfc1    $8,  $31        \n\t"
+		"swc1    $f4,  8(%[out]) \n\t"
+		"sw      $8,  24(%[stat])\n\t"
+		:
+		: [buf]"r"(data), [stat]"r"(stat), [out]"r"(val)
+		: "memory", "8", "f0", "f1", "f2", "f3", "f4"
+	);
+
+	bool ok = checkCOP1Flags(expected, stat, count);
+	for (u32 i = 0; i < countRes; i++) {
+		if (val[i] != expectedResult[i].val) {
+			printf("%s => %08X != %08X\n", expectedResult[i].op, val[i], expectedResult[i].val);
+			ok = false;
+		}
+	}
+	return ok;
+}
+
+bool testAccCop2() {
+	alignas(16) static constexpr u32 data[] = {
+		0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF,
+		0x7FFFFFFF, 0x00000000, 0x7FFFFFFF, 0x00000000,
+		0x00000000, 0x7FFFFFFF, 0x00000000, 0x7FFFFFFF,
+		0xBF800000, 0x3F000000, 0xBF800001, 0x00000000,
+		0xBF800001, 0xBF800000, 0xBF800000, 0xBF800000,
+	};
+	static constexpr COP2FlagOp expected[] = {
+		{01010, 0xA000, "VADDA      O-O-"},
+		{01010, 0x5000, "VADD       -O-O"},
+		{01310, 0xC000, "VMADDA.xyw -OOO"},
+		{01312, 0xE080, "VMADD      O---"},
+	};
+	static constexpr struct {
+		u32 val;
+		const char* op;
+	} expectedResult[] = {
+		{0xFFFFFFFF, "(7FFFFFFF VADDA + 7FFFFFFF) VMADDA + (7FFFFFFF * BF800000) VMADD + (BF800001 * 7FFFFFFF)"},
+		{0x7FFFFFFF, "(7FFFFFFF VADDA + 00000000) VMADDA + (7FFFFFFF * 3F000000) VMADD + (BF800000 * 7FFFFFFF)"},
+		{0x7FFFFFFF, "(7FFFFFFF VADDA + 7FFFFFFF) VMADD + (BF800000 * 7FFFFFFF)"},
+		{0x74000000, "(7FFFFFFF VADDA + 00000000) VMADDA + (7FFFFFFF * 00000000) VMADD + (BF800000 * 7FFFFFFF)"},
+	};
+	constexpr u32 count = sizeof(expected) / sizeof(*expected);
+	constexpr u32 countRes = sizeof(expectedResult) / sizeof(*expectedResult);
+	alignas(16) u32 val[countRes];
+	u32 stat[count], mac[count];
+	asm(
+		"ctc2       $0,   $16        \n\t"
+		"lqc2       $vf1,  0(%[buf]) \n\t"
+		"lqc2       $vf2, 16(%[buf]) \n\t"
+		"vadda      $ACC, $vf1, $vf2 \n\t"
+		"lqc2       $vf2, 32(%[buf]) \n\t"
+		"vnop                        \n\t"
+		"vnop                        \n\t"
+		"vnop                        \n\t"
+		"cfc2       $8,   $16        \n\t"
+		"cfc2       $9,   $17        \n\t"
+		"vadd       $vf4, $vf1, $vf2 \n\t"
+		"lqc2       $vf2, 48(%[buf]) \n\t"
+		"sw         $8,    0(%[stat])\n\t"
+		"sw         $9,    0(%[mac]) \n\t"
+		"vmove      $vf5, $vf4       \n\t"
+		"cfc2       $8,   $16        \n\t"
+		"cfc2       $9,   $17        \n\t"
+		"vmadda.xyw $ACC, $vf1, $vf2 \n\t"
+		"lqc2       $vf2, 64(%[buf]) \n\t"
+		"sw         $8,    4(%[stat])\n\t"
+		"sw         $9,    4(%[mac]) \n\t"
+		"vnop                        \n\t"
+		"cfc2       $8,   $16        \n\t"
+		"cfc2       $9,   $17        \n\t"
+		"vmadd      $vf4, $vf2, $vf1 \n\t"
+		"sw         $8,    8(%[stat])\n\t"
+		"sw         $9,    8(%[mac]) \n\t"
+		"sqc2       $vf4,  0(%[out]) \n\t"
+		"cfc2       $8,   $16        \n\t"
+		"cfc2       $9,   $17        \n\t"
+		"sw         $8,   12(%[stat])\n\t"
+		"sw         $9,   12(%[mac]) \n\t"
+		:
+		: [buf]"r"(data), [stat]"r"(stat), [mac]"r"(mac), [out]"r"(val)
+		: "memory", "8", "9"
+	);
+	bool ok = checkCOP2Flags(expected, stat, mac, count);
+	for (u32 i = 0; i < countRes; i++) {
+		if (val[i] != expectedResult[i].val) {
+			printf("%s => %08X != %08X\n", expectedResult[i].op, val[i], expectedResult[i].val);
+			ok = false;
+		}
+	}
+	return ok;
+}
+
+bool testAcc() {
+	bool ok = true;
+	ok &= testAccCop1();
+	ok &= testAccCop2();
 	return ok;
 }

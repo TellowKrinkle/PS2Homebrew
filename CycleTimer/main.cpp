@@ -16,6 +16,7 @@ static u32 test() {
 		"sw    $8, 128(%[buffer])\n\t"
 		"\n0:\n\t"
 		"mfc0 %[cycles], $9\n\t"
+		"mfc0 %[cycles], $9\n\t"
 		"mfc0 %[cycles], $9\n\t" // The above instructions can't run at the same time as this one, guaranteeing that this one will be the first of a superscalar cycle
 		"vnop              \n\t" // vnop can run at the same time as mfc0, so it will always pair with it
 

@@ -1,0 +1,22 @@
+.vu
+.globl vudivbeg
+.globl vudivend
+
+vudivbeg:
+	ADDq.w    VF5w, VF1w, Q  DIV Q, VF2x, VF1x
+	ADDq.x    VF2x, VF0x, Q  DIV Q, VF2y, VF1x
+	ADDq[E].y VF2y, VF0y, Q  DIV Q, VF2z, VF1x
+	ADDq.z    VF2z, VF0z, Q  DIV Q, VF2w, VF1x
+	ADDq.w    VF2w, VF1w, Q  DIV Q, VF3x, VF1x
+	ADDq.x    VF3x, VF0x, Q  DIV Q, VF3y, VF1x
+	ADDq[E].y VF3y, VF0y, Q  DIV Q, VF3z, VF1x
+	ADDq.z    VF3z, VF0z, Q  DIV Q, VF3w, VF1x
+	ADDq.w    VF3w, VF1w, Q  DIV Q, VF4x, VF1x
+	ADDq.x    VF4x, VF0x, Q  DIV Q, VF4y, VF1x
+	ADDq[E].y VF4y, VF0y, Q  DIV Q, VF4z, VF1x
+	ADDq.z    VF4z, VF0z, Q  DIV Q, VF4w, VF1x
+	ADDq.w    VF4w, VF1w, Q  DIV Q, VF5x, VF1x
+	ADDq.x    VF5x, VF0x, Q  DIV Q, VF5y, VF1x
+	ADDq[E].y VF5y, VF0y, Q  DIV Q, VF5z, VF1x
+	ADDq.z    VF5z, VF0z, Q  DIV Q, VF5w, VF1x
+vudivend:
